@@ -1,0 +1,122 @@
+#import necessary libraries
+import io
+import random
+import string 
+import warnings
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import warnings
+import speech_recognition as sr
+import pyttsx3
+
+warnings.filterwarnings('ignore')
+
+import nltk
+from nltk.stem import WordNetLemmatizer
+nltk.download('popular', quiet=True)
+
+#Reading in the Text file
+with open('chatbot.txt','r', encoding='utf8', errors ='ignore') as fin:
+    raw = fin.read().lower()
+
+#TOkenisation
+sent_tokens = nltk.sent_tokenize(raw)# converts to list of sentences
+word_tokens = nltk.word_tokenize(raw)# converts to list of words
+
+# Preprocessing
+lemmer = WordNetLemmatizer()
+def LemTokens(tokens):
+    return [lemmer.lemmatize(token) for token in tokens]
+remove_punct_dict = dict((ord(punct), None) for punct in string.punctuation)
+
+def LemNormalize(text):
+    return LemTokens(nltk.word_tokenize(text.lower().translate(remove_punct_dict)))
+
+
+# Keyword Matching
+GREETING_INPUTS = ("hello", "hi", "greetings", "sup", "what's up","hey",)
+GREETING_RESPONSES = ["hi", "hey", "*nods*", "hi there", "hello", "I am glad! You are talking to me"]
+
+def greeting(sentence):
+    """If user's input is a greeting, return a greeting response"""
+    for word in sentence.split():
+        if word.lower() in GREETING_INPUTS:
+            return random.choice(GREETING_RESPONSES)
+
+
+# Generating response from text file
+def response(user_response):
+    robo_response=''
+    sent_tokens.append(user_response)
+    TfidfVec = TfidfVectorizer(tokenizer=LemNormalize, stop_words='english')
+    tfidf = TfidfVec.fit_transform(sent_tokens)
+    vals = cosine_similarity(tfidf[-1], tfidf)
+    idx=vals.argsort()[0][-2]
+    flat = vals.flatten()
+    flat.sort()
+    req_tfidf = flat[-2]
+    if(req_tfidf==0):
+        robo_response=robo_response+"I am sorry! I don't understand you"
+        return robo_response
+    else:
+        robo_response = robo_response + sent_tokens[idx]
+        return robo_response
+
+# initialisation
+engine = pyttsx3.init()
+engine.say("Hello, I am similar to alexa, I can answer most of your questions and use the machine learning techniques to generate a response for you.")
+engine.runAndWait()
+flag=True
+print("Hello, I am similar to alexa, I can answer most of your questions and use the machine learning techniques to generate a response for you.")
+mic_name = "BUS 002 Device 012: ID 1b3f:2008 Generalplus Technology Inc."
+sample_rate = 48000
+chunk_size = 2048
+r = sr.Recognizer()
+mic_list = sr.Microphone.list_microphone_names()
+for i, microphone_name in enumerate(mic_list):
+    if microphone_name == mic_name:
+        device_id = i
+with sr.Microphone(device_index = None, sample_rate = sample_rate, chunk_size = chunk_size) as source:
+    r.adjust_for_ambient_noise(source)
+    print ("Say Something")
+    audio = r.listen(source)
+    try:
+        text = r.recognize_google(audio)
+        print (text)
+    except sr.UnkownValueError:
+        print("Google Speech Recognition could not understand audio")
+    except sr.RequestError as e:
+        print("Could not request results from Google Speech Recognition service; {0}".format(e))
+
+while(flag==True):
+    user_response = text
+    user_response=user_response.lower()
+    if(user_response!='bye'):
+        if(user_response=='thanks' or user_response=='thank you' ):
+            flag = False
+            print("You're welcome, bye.")
+            # testing
+            engine.say("You're welcome bye")
+            engine.runAndWait()
+        else:
+            if(greeting(user_response)!=None):
+                flag = False
+                print(greeting(user_response))
+                # testing
+                engine.say(greeting(user_response))
+                engine.runAndWait()
+            else:
+                flag= False
+                print("ROBO: ",end="")
+                print(response(user_response))
+                # testing
+                engine.say("Hey this is the text generated response")
+                engine.runAndWait()
+                sent_tokens.remove(user_response)
+    else:
+        flag=False
+        print("Bye, take care. Thanks for talking with me.")
+        # testing
+        engine.say("Bye, take care. Thanks for talking with me.")
+        engine.runAndWait()
